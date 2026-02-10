@@ -1,80 +1,138 @@
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Background Remover</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f8f9fa;
-            text-align: center;
-            padding: 40px;
-        }
-        .container {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            max-width: 450px;
-            margin: auto;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-        }
-        img {
-            width: 100%;
-            margin-top: 20px;
-            border-radius: 10px;
-        }
-        #upload {
-            margin: 20px 0;
-        }
-        button {
-            padding: 10px 15px;
-            font-size: 16px;
-            border: none;
-            background: #4caf50;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Advanced Video to GIF</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #eaeaea;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app {
+  background: #fff;
+  padding: 20px;
+  width: 380px;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.15);
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+input, button {
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px;
+  font-size: 14px;
+}
+
+label {
+  font-size: 13px;
+  color: #444;
+}
+
+button {
+  background: #111;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #999;
+}
+
+#status {
+  font-size: 13px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+img {
+  max-width: 100%;
+  margin-top: 10px;
+  border-radius: 6px;
+}
+</style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Remove Image Background</h2>
+<div class="app">
+  <h2>Video → GIF</h2>
 
-    <input type="file" id="upload" accept="image/*">
-    <button onclick="removeBG()">Remove Background</button>
+  <input type="file" id="videoFile" accept="video/*">
 
-    <div id="result"></div>
+  <label>Start Time (sec)</label>
+  <input type="number" id="start" value="0">
+
+  <label>End Time (sec)</label>
+  <input type="number" id="end" value="3">
+
+  <label>Width (px)</label>
+  <input type="number" id="width" value="320">
+
+  <label>FPS</label>
+  <input type="number" id="fps" value="10">
+
+  <button id="convertBtn">Convert to GIF</button>
+
+  <div id="status"></div>
+  <img id="result">
 </div>
 
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 <script>
-async function removeBG() {
-    const fileInput = document.getElementById("upload");
-    if (!fileInput.files.length) {
-        alert("Please upload an image!");
-        return;
-    }
+const { createFFmpeg, fetchFile } = FFmpeg;
+const ffmpeg = createFFmpeg({ log: true });
 
-    const formData = new FormData();
-    formData.append("image_file", fileInput.files[0]);
-    formData.append("size", "auto");
+const btn = document.getElementById("convertBtn");
+const status = document.getElementById("status");
 
-    const res = await fetch("https://api.remove.bg/v1.0/removebg", {
-        method: "POST",
-        headers: {
-            "X-Api-Key": "fPq6PiUgdfrcE3HLLTckqsCA"
-        },
-        body: formData
-    });
+btn.onclick = async () => {
+  const file = document.getElementById("videoFile").files[0];
+  if (!file) return alert("Please upload a video");
 
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+  btn.disabled = true;
+  status.innerText = "Loading FFmpeg...";
 
-    document.getElementById("result").innerHTML =
-        `<img src="${url}" alt="Removed Background Image">`;
-}
+  if (!ffmpeg.isLoaded()) await ffmpeg.load();
+
+  status.innerText = "Processing video...";
+
+  const start = document.getElementById("start").value;
+  const end = document.getElementById("end").value;
+  const width = document.getElementById("width").value;
+  const fps = document.getElementById("fps").value;
+
+  ffmpeg.FS("writeFile", "input.mp4", await fetchFile(file));
+
+  await ffmpeg.run(
+    "-ss", start,
+    "-to", end,
+    "-i", "input.mp4",
+    "-vf", `fps=${fps},scale=${width}:-1:flags=lanczos`,
+    "-gifflags", "+transdiff",
+    "output.gif"
+  );
+
+  const data = ffmpeg.FS("readFile", "output.gif");
+  const gifURL = URL.createObjectURL(
+    new Blob([data.buffer], { type: "image/gif" })
+  );
+
+  document.getElementById("result").src = gifURL;
+  status.innerText = "Done ✅ GIF Ready";
+  btn.disabled = false;
+};
 </script>
 
 </body>
